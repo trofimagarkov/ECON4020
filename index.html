@@ -107,6 +107,8 @@ table.rub th{background:#1f3864;color:#fff;text-align:left;font-size:18px}
 .check li{font-size:22px;margin:7px 0;list-style:none;line-height:1.35}
 .dot{display:inline-block;width:15px;height:15px;border-radius:50%;margin-right:10px;vertical-align:middle}
 
+.handle{touch-action:none}
+@media (hover:none) and (pointer:coarse){#ui{opacity:1!important;background:rgba(255,255,255,.95)}#ui button{font-size:15px;padding:6px 10px}}
 #ui{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:13px;color:var(--muted);z-index:100;opacity:.3;transition:opacity .3s}
 #ui:hover{opacity:1}
 #ui button{font:inherit;font-size:13px;padding:3px 9px;margin-left:4px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
@@ -496,7 +498,7 @@ let SCALE=1;
 function fit(){
   const wrap=document.getElementById('pagewrap');
   if(document.body.classList.contains('pages')){
-    SCALE=Math.min(1,(innerWidth-40)/1600);
+    SCALE=Math.min(1,(innerWidth-(innerWidth<700?12:40))/1600);
     stage.style.transform='scale('+SCALE+')';
     stage.style.marginLeft=Math.max(0,(innerWidth-1600*SCALE)/2)+'px';
     wrap.style.height=(stage.scrollHeight*SCALE+48)+'px';
@@ -826,6 +828,15 @@ hooks['s-morph']=(s,dir)=>{
 
 const start=parseInt((location.hash||'').slice(1),10);
 show(isNaN(start)?0:start-1,false);
+/* phones and tablets: open in page view (scroll through all slides); swipe left/right in slide view */
+if(matchMedia('(hover:none) and (pointer:coarse)').matches){
+  togglePages();
+  let tx=null,ty=0;
+  addEventListener('touchstart',e=>{if(document.body.classList.contains('pages')||e.target.closest('svg,button')){tx=null;return;}
+    tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+  addEventListener('touchend',e=>{if(tx===null)return;const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;tx=null;
+    if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))(dx<0?next:prev)();},{passive:true});
+}
 })();
 </script>
 </body>
