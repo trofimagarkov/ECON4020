@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adverse Selection and Signalling</title>
+<style>
+:root{
+  --bg:#fbfaf7; --ink:#1d2433; --muted:#5b6472; --line:#d9d6cf;
+  --seller:#c0392b; --buyer:#2a6fb0; --common:#5b6472; --result:#2e7d4f; --gap:#e67e22;
+  --info:#455a7a; --problem:#b26a00; --signal:#0f8b8d; --screen:#7b4bb7; --eff:#b23a6b;
+  --fade:1100ms;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;overflow:hidden}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#stage{width:1600px;height:900px;position:relative;flex:none;transform-origin:center center}
+.slide{position:absolute;inset:0;padding:40px 70px 50px;display:none;flex-direction:column}
+.slide.active{display:flex}
+h1{font-size:40px;margin:0 0 6px;font-weight:700;letter-spacing:-.3px;flex:none}
+h2{font-size:22px;margin:0 0 18px;font-weight:400;color:var(--muted);flex:none}
+p{font-size:26px;line-height:1.38;margin:0}
+.small{font-size:20px}
+.hid{visibility:hidden}
+.stack{display:grid}
+.stack>*{grid-area:1/1}
+.qa{color:var(--muted);font-weight:700}
+.card{border-radius:12px;padding:12px 20px;background:#fff;border:2px solid var(--line);font-size:24px;line-height:1.38}
+.card.sel{border-color:var(--seller);border-left-width:10px}
+.card.buy{border-color:var(--buyer);border-left-width:10px}
+.card.com{border-color:var(--common);border-left-width:10px}
+.card.res{border-color:var(--result);border-left-width:10px;background:#f1f8f3}
+.card.hi{border-color:var(--result);border-left-width:10px}
+.card.ctr{border-color:var(--ink);text-align:center;font-weight:700;border-width:3px}
+.who{font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+.who .m{text-transform:none}
+.who.sel{color:var(--seller)} .who.buy{color:var(--buyer)} .who.com{color:var(--common)} .who.res{color:var(--result)}
+b.sel{color:var(--seller)} b.buy{color:var(--buyer)}
+.m{font-family:"Times New Roman",serif;font-style:italic;font-size:1.08em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.col{display:flex;flex-direction:column;gap:14px}
+.qtext{background:#fff;border:2px solid var(--line);border-radius:12px;padding:18px 24px;font-size:25px;line-height:1.45}
+.qtext .part{margin-top:8px}
+.given{font-size:24px}
+.given .who{font-size:16px}
+
+.titlewrap{display:flex;flex-direction:column;justify-content:center;height:100%}
+.titlewrap h1{font-size:60px}
+.titlewrap .sub{font-size:30px;color:var(--muted);margin-top:10px}
+
+.chain{display:flex;flex-direction:column;gap:12px;flex:1}
+.chain .card{width:880px;font-size:23px;padding:10px 20px}
+.chain .card.buy{align-self:flex-end}
+.chain .card.ctr,.chain .card.res{align-self:center;width:900px}
+.legend{position:absolute;right:70px;top:48px;display:flex;gap:18px;font-size:20px}
+.legend span{display:flex;align-items:center;gap:8px}
+.legend i{width:18px;height:18px;border-radius:4px;display:inline-block}
+
+.gwrap{display:flex;gap:26px;align-items:flex-start;flex:1;min-height:0}
+.gwrap svg{flex:none;background:#fff;border:1px solid var(--line);border-radius:12px;height:760px;width:1000px}
+.side{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0}
+.readout{background:#fff;border:2px solid var(--line);border-radius:12px;padding:12px 16px;font-size:20px;line-height:1.45}
+.btn{font:inherit;font-size:20px;padding:8px 16px;border-radius:10px;border:2px solid var(--ink);background:#fff;cursor:pointer}
+.btn:hover{background:#f0eee8}
+.btnrow{display:flex;gap:10px}
+svg text{font-family:Arial,Helvetica,sans-serif}
+.handle{cursor:grab} .handle:active{cursor:grabbing}
+.rng{border-radius:10px;border:2px solid;padding:6px 12px;font-size:17px;line-height:1.3;background:#fff;opacity:.22}
+.rng.on{opacity:1}
+.rng b{font-size:19px}
+.hint{font-size:17px;color:var(--muted)}
+.dec{border:2px solid;border-radius:10px;padding:6px 10px;margin-top:8px;background:#fff}
+.dec .t{font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.dec .r{font-size:18px;line-height:1.4;opacity:.35}
+.dec .r.pick{opacity:1;font-weight:700}
+
+.diag{display:grid;grid-template-columns:280px 1fr 280px;grid-template-rows:auto auto auto;align-content:start;gap:16px 22px}
+.box{border-radius:12px;background:#fff;border:3px solid;padding:10px 16px;font-size:22px;line-height:1.38}
+.box .lab{font-weight:800;font-size:19px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.q{font-size:23px;font-weight:700;color:var(--muted)}
+.ex{font-size:20px;margin-top:6px}
+.mid{display:flex;flex-direction:column;gap:10px}
+.arrow{position:relative;height:30px;display:flex;align-items:center}
+.arrow .shaft{flex:1;height:6px;border-radius:3px}
+.arrow .head{width:0;height:0;border-top:14px solid transparent;border-bottom:14px solid transparent}
+.arrow .lbl{position:absolute;left:50%;transform:translateX(-50%);background:var(--bg);padding:0 10px;font-weight:700;font-size:19px}
+.side3{align-self:center}
+
+.morph{display:grid;grid-template-columns:430px 1fr;gap:34px;flex:1;min-height:0}
+.minis{display:flex;flex-direction:column;gap:12px}
+.minis .box{font-size:17px;padding:8px 12px}
+.minis .box .lab{font-size:16px}
+.ans p{font-size:20.5px;line-height:1.5;margin:0 0 10px}
+.kw{border-radius:4px;padding:0 3px;font-weight:700}
+.kw.lit[data-c=info]{background:#e7ecf3;color:var(--info)}
+.kw.lit[data-c=problem]{background:#fbefd9;color:var(--problem)}
+.kw.lit[data-c=signal]{background:#dff2f2;color:var(--signal)}
+.kw.lit[data-c=screen]{background:#eee5f8;color:var(--screen)}
+.kw.lit[data-c=eff]{background:#f8e3ec;color:var(--eff)}
+.chip{position:absolute;z-index:50;padding:3px 9px;border-radius:6px;font-size:19px;font-weight:700;color:#fff;white-space:nowrap;pointer-events:none}
+
+table.rub{border-collapse:collapse;width:100%;font-size:19px;line-height:1.38}
+table.rub th,table.rub td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;background:#fff}
+table.rub th{background:#1f3864;color:#fff;text-align:left;font-size:18px}
+.check{padding:0;margin:0}
+.check li{font-size:22px;margin:7px 0;list-style:none;line-height:1.35}
+.dot{display:inline-block;width:15px;height:15px;border-radius:50%;margin-right:10px;vertical-align:middle}
+
+#ui{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;font-size:13px;color:var(--muted);z-index:100;opacity:.3;transition:opacity .3s}
+#ui:hover{opacity:1}
+#ui button{font:inherit;font-size:13px;padding:3px 9px;margin-left:4px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--ink)}
+#ui button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+#progress{position:fixed;left:0;bottom:0;height:3px;background:var(--buyer);z-index:101;transition:width .4s}
+/* ---- page view and PDF ---- */
+html.pages,body.pages{overflow:auto;height:auto}
+body.pages #viewport{position:static;display:block;padding:24px 0}
+body.pages #stage{transform-origin:top left;height:auto}
+body.pages .slide{display:flex;position:relative;height:900px;margin-bottom:24px;background:var(--bg);box-shadow:0 2px 12px rgba(0,0,0,.12)}
+body.pages [data-s],body.pages .hid{visibility:visible}
+body.pages [data-until]{visibility:hidden}
+body.pages #progress{display:none}
+@media print{
+  @page{size:1600px 900px;margin:0}
+  html,body{height:auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #ui,#progress{display:none!important}
+  #viewport{position:static!important;display:block!important;padding:0!important}
+  #pagewrap{height:auto!important}
+  #stage{transform:none!important;height:auto!important;margin:0!important}
+  .slide{display:flex!important;position:relative!important;height:900px!important;margin:0!important;box-shadow:none!important;break-after:page;page-break-after:always}
+  [data-s],.hid{visibility:visible!important}
+  [data-until]{visibility:hidden!important}
+  .btn,.btnrow,.hint{display:none!important}
+}
+
+</style>
+</head>
+<body>
+<div id="viewport"><div id="pagewrap"><div id="stage">
+
+<!-- 1 TITLE -->
+<section class="slide" id="s-title">
+  <div class="titlewrap">
+    <h1>Adverse Selection and Signalling</h1>
+    <div class="sub">ECON4020 Microeconomic Analysis · Tutorial</div>
+    <div class="sub">Problem Set 7 Q2 · Problem Set 8 Q1</div>
+  </div>
+</section>
+
+<!-- 2 PS7 Q2 QUESTION -->
+<section class="slide" id="s-ps7q">
+  <h1>PS7 Q2: adverse selection</h1>
+  <div class="qtext">Suppose buyers will pay £2,000 for a good car (a ‘peach’) and £1,000 for a bad car (a ‘lemon’). All cars acquired by the sellers are lemons, which they acquire for £1,200 each. They can then choose to have mechanics fix the cars up, turning them from lemons to peaches, for £300 each. Buyers cannot tell the difference between lemons and peaches until after the purchase, and are risk-neutral (i.e., will pay their expected valuation).
+    <div class="part"><b>(a)</b> Explain why in equilibrium, no transactions are made.</div>
+    <div class="part"><b>(b)</b> Suppose the used car salesmen can commit to having the mechanics repair a <span class="m">q</span>-fraction of the cars. (Once such an arrangement is made, they are committed to it.) For what values of <span class="m">q</span> will the equilibrium still lead to no transactions, and for which values of <span class="m">q</span> will transactions take place?</div>
+  </div>
+  <div class="grid3" style="margin-top:18px">
+    <div class="card buy given"><div class="who buy">Buyers value</div>peach <b>£2,000</b> · lemon <b>£1,000</b><br>risk-neutral: pay the <b>expected value</b></div>
+    <div class="card sel given"><div class="who sel">Sellers pay</div>acquire a lemon <b>£1,200</b><br>fix it into a peach <b>+£300</b></div>
+    <div class="card com given"><div class="who com">Information</div>buyers <b>cannot tell</b> peaches from lemons before buying</div>
+  </div>
+</section>
+
+<!-- 3 REMINDERS -->
+<section class="slide" id="s-remind">
+  <h1>PS7 Q2: two reminders</h1>
+  <h2>What is an equilibrium, and who knows what?</h2>
+  <div class="card res"><div class="who res">Equilibrium</div>
+    Buyers want to participate, sellers want to participate, and there is <b>no profitable deviation</b> for anyone:<br>everyone plays a best response to what everyone else does.</div>
+  <div class="grid2" style="margin-top:18px">
+    <div class="card sel"><div class="who sel">Asymmetric information</div><b>Sellers know</b> whether a car was fixed.<br><b>Buyers do not.</b></div>
+    <div class="card com"><div class="who com">Common knowledge</div>Prices, costs, values, and that everyone is rational:<br><i>I know that you know that I know…</i></div>
+  </div>
+</section>
+
+<!-- 4 CHAIN -->
+<section class="slide" id="s-chain">
+  <h1>PS7 Q2(a): why are no cars traded?</h1>
+  <div class="legend"><span><i style="background:var(--seller)"></i>Sellers think</span><span><i style="background:var(--buyer)"></i>Buyers think</span></div>
+  <div class="chain" style="margin-top:12px">
+    <div class="card ctr">Suppose cars are being sold at some price <span class="m">P</span>.</div>
+    <div class="card sel"><div class="who sel">Seller</div><div class="stack">
+      <div class="qa" data-until="1">If cars sell for <span class="m">P</span>, what does a seller get if they fix a car? And if they don’t?</div>
+      <div data-s="1">Cars sell for <span class="m">P</span>. If I fix a car, I get <span class="m">P</span> − 1,200 − 300 = <span class="m">P</span> − 1,500. If I don’t fix it, I get <span class="m">P</span> − 1,200.</div></div></div>
+    <div class="card sel" data-s="2"><div class="who sel">Seller</div><div class="stack">
+      <div class="qa" data-until="3">Can buyers tell whether a car was fixed? So what does the seller do?</div>
+      <div data-s="3">Buyers can’t verify whether a car was fixed, so I get the same <span class="m">P</span> either way.<br><span class="m">P</span> − 1,200 &gt; <span class="m">P</span> − 1,500, so I <b class="sel">never fix</b>.</div></div></div>
+    <div class="card buy" data-s="4"><div class="who buy">Buyer</div><div class="stack">
+      <div class="qa" data-until="5">Buyers know how sellers think. What kind of car do they expect, and how much will they pay?</div>
+      <div data-s="5">I know sellers never fix. So every car is a lemon, and I pay at most <b class="buy">£1,000</b>.</div></div></div>
+    <div class="card sel" data-s="6"><div class="who sel">Seller</div><div class="stack">
+      <div class="qa" data-until="7">Buyers pay at most £1,000. Will sellers acquire cars that cost £1,200?</div>
+      <div data-s="7">Buyers pay at most £1,000, but a car costs me £1,200 to acquire. So I <b class="sel">don’t acquire any cars</b>.</div></div></div>
+    <div class="card res" data-s="8"><div class="who res">Equilibrium</div><div class="stack">
+      <div class="qa" data-until="9">So what is the equilibrium?</div>
+      <div data-s="9">No cars are acquired or sold: expected value <b>£1,000</b> &lt; average cost <b>£1,200</b>.</div></div></div>
+  </div>
+</section>
+
+<!-- 5 COMMIT -->
+<section class="slide" id="s-commit">
+  <h1>PS7 Q2(b): sellers commit to repairing a share <span class="m">q</span></h1>
+  <h2>Buyers still cannot tell which car was fixed, but they know <span class="m">q</span> (for example, it is required by law).</h2>
+  <div class="grid2">
+    <div class="card sel"><div class="who sel">Sellers: average cost per car</div>
+      <span class="m">AC</span>(<span class="m">q</span>) = 1,200 + 300<span class="m">q</span></div>
+    <div class="card buy"><div class="who buy">Buyers: expected value of a car</div>
+      <span class="m">EV</span>(<span class="m">q</span>) = <span class="m">q</span> × 2,000 + (1 − <span class="m">q</span>) × 1,000 = 1,000 + 1,000<span class="m">q</span></div>
+  </div>
+  <div class="card com" data-s="1" style="margin-top:18px"><div class="who com">Why was there no trade in (a)?</div>
+    There <span class="m">q</span> = 0: <span class="m">EV</span> = £1,000 &lt; <span class="m">AC</span> = £1,200. Buyers would pay less than a car costs.</div>
+  <div class="card res" data-s="2" style="margin-top:18px"><div class="who res">So trade needs <span class="m">EV</span>(<span class="m">q</span>) ≥ <span class="m">AC</span>(<span class="m">q</span>)</div>
+    1,000 + 1,000<span class="m">q</span> ≥ 1,200 + 300<span class="m">q</span>
+    &nbsp;⇒&nbsp; 700<span class="m">q</span> ≥ 200
+    &nbsp;⇒&nbsp; <b><span class="m">q</span> ≥ 2/7 ≈ 28.6%</b><br>
+    <span class="small">Below 2/7: no trade. At exactly 2/7: trade is possible, but with zero surplus. Above 2/7: trade with positive surplus.</span></div>
+</section>
+
+<!-- 6 GRAPH PS7 -->
+<section class="slide" id="s-g1">
+  <h1>PS7 Q2(b): how many cars must be repaired?</h1>
+  <div class="gwrap">
+    <svg id="g1" viewBox="0 0 1000 760"></svg>
+    <div class="side">
+      <div class="readout" id="g1r"></div>
+      <div id="g1s" style="border-radius:14px;border:4px solid;padding:22px 18px;text-align:center;font-size:40px;font-weight:800;line-height:1.2;background:#fff;min-height:150px;display:flex;align-items:center;justify-content:center"></div>
+      <div class="btnrow"><button class="btn" data-play="g1">▶ Play</button><button class="btn" data-reset="g1">Reset</button></div>
+      <div class="hint">Drag the red or blue dot, or press Play.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 PRICE, PROFIT, BEST q -->
+<section class="slide" id="s-welfare">
+  <h1>PS7 Q2(b): price, profit and the best <span class="m">q</span></h1>
+  <h2>Buyers are risk-neutral and pay their expected valuation.</h2>
+  <div class="grid2">
+    <div class="card buy"><div class="who buy">Price</div><span class="m">P</span> = <span class="m">EV</span>(<span class="m">q</span>) = 1,000 + 1,000<span class="m">q</span></div>
+    <div class="card sel"><div class="who sel">Seller’s profit per car</div><span class="m">EV</span>(<span class="m">q</span>) − <span class="m">AC</span>(<span class="m">q</span>) = 700<span class="m">q</span> − 200 <span class="small">(zero at <span class="m">q</span> = 2/7)</span></div>
+  </div>
+  <div class="card com" data-s="1" style="margin-top:18px"><div class="who com">Question</div>
+    If sellers can commit to any <span class="m">q</span>, which <span class="m">q</span> do they choose?</div>
+  <div data-s="2" style="margin-top:18px">
+    <div class="card res"><div class="who res">Answer</div>
+      <b><span class="m">q</span> = 1</b>: every car is fixed, and profit is £500 per car (= £2,000 − £1,500).<br>
+      Fixing costs £300 and adds £1,000 of value, so this is also the <b>efficient</b> outcome.</div>
+    <p style="margin-top:22px">A smart commitment (a warranty, certification, regulation) turns a market that does not exist into one that works. <b>That is mechanism design</b>, and it is why it is fun to be an economist.</p>
+  </div>
+</section>
+
+<!-- 8 PS8 (a) QUESTION -->
+<section class="slide" id="s-ps8a">
+  <h1>PS8 Q1: recruiting a worker</h1>
+  <div class="qtext">There are two kinds of workers in the market. High quality workers can produce £1000 of output over the course of the project, while low quality workers produce only half that much. 70% of the workers are of the less productive type while 30% are of the more productive type.
+    <div class="part"><b>(a)</b> Briefly define the concepts of signalling and screening.</div></div>
+  <div class="grid2" style="margin-top:18px">
+    <div class="card hi given"><div class="who res">High productivity · 30%</div>produces <b>£1,000</b></div>
+    <div class="card sel given"><div class="who sel">Low productivity · 70%</div>produces <b>£500</b></div>
+  </div>
+  <div class="card com given" style="margin-top:18px"><div class="who com">Hidden information</div>Each worker knows their own productivity. The firm does not.</div>
+  <p style="margin-top:26px;font-size:30px"><b>One side knows, the other does not. What can each side do about it?</b></p>
+</section>
+
+<!-- 9 DIAGRAM -->
+<section class="slide" id="s-diag">
+  <h1>PS8 Q1(a): signalling and screening</h1>
+  <div class="diag" style="margin-top:10px">
+    <div class="box" style="grid-column:1/4;border-color:var(--problem);text-align:center;justify-self:center;width:1000px">
+      <div class="lab" style="color:var(--problem)">The problem: adverse selection</div>
+      Types cannot be told apart ⇒ one <b>pooling</b> wage or price: high types are paid less than they are worth, low types more ⇒ lemons <b>can</b> crowd out peaches.</div>
+    <div class="box side3" style="border-color:var(--info)"><div class="lab" style="color:var(--info)">Informed side</div>knows its type<div class="ex">workers, car sellers, insurance buyers</div></div>
+    <div class="mid">
+      <div class="box" data-s="1" style="border-color:var(--signal)"><div class="lab" style="color:var(--signal)">Signalling</div>
+        <div class="stack">
+          <div class="q" data-until="2">What is signalling?</div>
+          <div data-s="2">Undertaken by the agent with <b>more information</b>, to <b>reveal</b> the hidden information. Credible only if the wage gain <b>covers the high type’s cost</b> but <b>not the low type’s</b>.</div></div>
+        <div class="ex" data-s="3"><b>Examples:</b> warranties, education and CVs, brand name and reputation.</div></div>
+      <div class="arrow" data-s="1"><div class="shaft" style="background:var(--signal)"></div><div class="head" style="border-left:26px solid var(--signal)"></div><span class="lbl" style="color:var(--signal)">signals →</span></div>
+      <div class="arrow" data-s="4"><div class="head" style="border-right:26px solid var(--screen)"></div><div class="shaft" style="background:var(--screen)"></div><span class="lbl" style="color:var(--screen)">← screens</span></div>
+      <div class="box" data-s="4" style="border-color:var(--screen)"><div class="lab" style="color:var(--screen)">Screening</div>
+        <div class="stack">
+          <div class="q" data-until="5">What is screening?</div>
+          <div data-s="5">Undertaken by the agent with <b>less information</b>, to <b>discover</b> the hidden information, e.g. a <b>menu of contracts</b> from which types <b>self-select</b>.</div></div>
+        <div class="ex" data-s="6"><b>Examples:</b> employers sift through CVs, a mechanic checks a used car, non-linear pricing.</div></div>
+    </div>
+    <div class="box side3" style="border-color:var(--info)"><div class="lab" style="color:var(--info)">Uninformed side</div>cannot see the type<div class="ex">firms, car buyers, insurers</div></div>
+    <div class="box" data-s="7" style="grid-column:1/4;border-color:var(--eff);text-align:center;justify-self:center;width:1000px">
+      <div class="lab" style="color:var(--eff)">Efficiency</div>
+      <div class="stack">
+        <div class="q" data-until="8">Does better information make the market more efficient?</div>
+        <div data-s="8">Not necessarily: in the simple model education does not raise output but is costly, so <b>signalling worsened efficiency</b>.</div></div></div>
+  </div>
+</section>
+
+<!-- 10 MORPH -->
+<section class="slide" id="s-morph">
+  <h1>From our diagram to an exam answer</h1>
+  <div class="morph" style="margin-top:14px">
+    <div class="minis">
+      <div class="box" id="mb-info" style="border-color:var(--info)"><div class="lab" style="color:var(--info)">Asymmetric information</div>one side knows its type, the other does not</div>
+      <div class="box" id="mb-problem" style="border-color:var(--problem)"><div class="lab" style="color:var(--problem)">The problem: adverse selection</div>pooling wage or price; lemons can crowd out peaches</div>
+      <div class="box" id="mb-signal" style="border-color:var(--signal)"><div class="lab" style="color:var(--signal)">Signalling</div>more information, reveal, gain covers high type’s cost only; warranties, education and CVs</div>
+      <div class="box" id="mb-screen" style="border-color:var(--screen)"><div class="lab" style="color:var(--screen)">Screening</div>less information, discover, menu of contracts, self-select; sift CVs, mechanic</div>
+      <div class="box" id="mb-eff" style="border-color:var(--eff)"><div class="lab" style="color:var(--eff)">Efficiency</div>output unchanged, education costly: signalling worsened efficiency</div>
+    </div>
+    <div class="ans">
+      <p data-s="1">Signalling and screening are responses to <span class="kw" data-c="info" data-from="mb-info">asymmetric information</span>, where one party, such as a worker or a car seller, has <span class="kw" data-c="info" data-from="mb-info">private information</span> about its type that the other party cannot observe. If types cannot be told apart, the uninformed side pays a single <span class="kw" data-c="problem" data-from="mb-problem">pooling wage or price</span>, so high types are paid less than they are worth and low types more. This leads to <span class="kw" data-c="problem" data-from="mb-problem">adverse selection</span>: low-quality types can crowd out high-quality ones, as in the market for lemons.</p>
+      <p data-s="2"><span class="kw" data-c="signal" data-from="mb-signal">Signalling</span> is undertaken by the agent with <span class="kw" data-c="signal" data-from="mb-signal">more information</span>, to <span class="kw" data-c="signal" data-from="mb-signal">reveal</span> it to the uninformed agent: for example, a car seller offers a <span class="kw" data-c="signal" data-from="mb-signal">warranty</span>, or job applicants signal their ability through <span class="kw" data-c="signal" data-from="mb-signal">education and their CVs</span>. In Spence’s model, education is a credible signal only if the wage gain <span class="kw" data-c="signal" data-from="mb-signal">covers the cost for high-ability workers but not for low-ability workers</span>, so that only they acquire it, giving a separating equilibrium.</p>
+      <p data-s="3"><span class="kw" data-c="screen" data-from="mb-screen">Screening</span> is undertaken by the agent with <span class="kw" data-c="screen" data-from="mb-screen">less information</span>, to <span class="kw" data-c="screen" data-from="mb-screen">discover</span> the hidden information: for example, a firm offers a <span class="kw" data-c="screen" data-from="mb-screen">menu of contracts</span> from which consumers <span class="kw" data-c="screen" data-from="mb-screen">self-select</span>, employers <span class="kw" data-c="screen" data-from="mb-screen">sift through CVs</span>, or a buyer pays a <span class="kw" data-c="screen" data-from="mb-screen">mechanic</span> to check a used car.</p>
+      <p data-s="4">Both can improve information in the market, but not necessarily efficiency. In the simple signalling model, education does not raise productivity, so <span class="kw" data-c="eff" data-from="mb-eff">total output is unchanged</span> while <span class="kw" data-c="eff" data-from="mb-eff">education is costly</span>: signalling <span class="kw" data-c="eff" data-from="mb-eff">worsened efficiency</span>. Improved information need not improve gains to trade.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 11 RUBRIC -->
+<section class="slide" id="s-rubric">
+  <h1>What makes an answer excellent (A1–A5)?</h1>
+  <h2>ECON4020 degree exam rubric, criterion 2: application and explanation of economic theory</h2>
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:30px">
+    <div>
+      <table class="rub">
+        <tr><th style="width:23%">Grade</th><th>Descriptor</th></tr>
+        <tr><td><b>Excellent<br>(A1–A5)</b></td><td>Identifies and applies the relevant concepts and models accurately and with excellent depth of understanding. Develops a <b>clear, well-focused and logically argued</b> discussion that explains the economics and its implications.</td></tr>
+        <tr><td><b>Good<br>(C1–C3)</b></td><td>Identifies the main relevant concepts and models and demonstrates good understanding of them. The discussion is <b>generally clear</b> and relevant, although <b>the depth of explanation</b> or development of the argument <b>may vary</b>.</td></tr>
+        <tr><td><b>Satisfactory<br>(D1–D3)</b></td><td>Identifies some relevant concepts and models and demonstrates a satisfactory understanding of their main features. The discussion addresses the question but is relatively <b>limited in depth, precision or development</b>.</td></tr>
+      </table>
+    </div>
+    <div data-s="1">
+      <p style="font-size:23px;margin-bottom:8px"><b>A basic answer</b> gives the two definitions.</p>
+      <p style="font-size:23px;margin-bottom:6px"><b>An excellent answer</b> also explains:</p>
+      <ul class="check">
+        <li><span class="dot" style="background:var(--problem)"></span>the <b>purpose</b>: asymmetric information and adverse selection</li>
+        <li><span class="dot" style="background:var(--signal)"></span><b>who</b> undertakes each one, and <b>why</b> a signal is credible</li>
+        <li><span class="dot" style="background:var(--screen)"></span>which <b>activities</b> count, with examples</li>
+        <li><span class="dot" style="background:var(--eff)"></span>the <b>efficiency</b> consequences</li>
+      </ul>
+      <p style="font-size:23px;margin-top:16px"><b>Your turn:</b> think about what grade <i>your</i> answer would get, and how you could improve it. What would you add? More explanation? Another example? Did you leave out an angle, such as efficiency?</p>
+    </div>
+  </div>
+</section>
+
+<!-- 12 PS8 (b) QUESTION -->
+<section class="slide" id="s-ps8b">
+  <h1>PS8 Q1(b): firms cannot tell workers apart</h1>
+  <div class="qtext"><b>(b)</b> If the firms cannot differentiate between the workers and the workers cannot signal their productivity, what will be the wage offered to each worker?</div>
+  <div class="grid3" style="margin-top:18px">
+    <div class="card hi given"><div class="who res">High productivity</div>produces <b>£1,000</b><br>share θ = <b>30%</b></div>
+    <div class="card sel given"><div class="who sel">Low productivity</div>produces <b>£500</b><br>share 1 − θ = <b>70%</b></div>
+    <div class="card com given"><div class="who com">Firms</div>compete for workers</div>
+  </div>
+  <div class="card com" style="margin-top:18px"><div class="qa">What will firms do if they cannot tell the two types apart?</div>
+    <div data-s="1" style="margin-top:4px">Pay every worker the <b>expected productivity</b>: one pooling wage, θ × £1,000 + (1 − θ) × £500.</div></div>
+</section>
+
+<!-- 13 GRAPH (b) -->
+<section class="slide" id="s-g2">
+  <h1>PS8 Q1(b): firms cannot tell workers apart</h1>
+  <div class="gwrap">
+    <svg id="g2" viewBox="0 0 1000 760"></svg>
+    <div class="side">
+      <div class="readout" id="g2r" style="min-height:150px"></div>
+      <div class="btnrow"><button class="btn" data-play="g2">▶ Play</button><button class="btn" data-reset="g2">Reset</button></div>
+      <div class="hint">Drag the point along the line: what if the share of high types changes?</div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 PS8 (c) QUESTION -->
+<section class="slide" id="s-ps8c">
+  <h1>PS8 Q1(c): firms can tell workers apart</h1>
+  <div class="qtext"><b>(c)</b> What if the firms could differentiate?</div>
+  <div class="grid3" style="margin-top:18px">
+    <div class="card hi given"><div class="who res">High productivity</div>produces <b>£1,000</b><br>share θ = <b>30%</b></div>
+    <div class="card sel given"><div class="who sel">Low productivity</div>produces <b>£500</b><br>share 1 − θ = <b>70%</b></div>
+    <div class="card com given"><div class="who com">Before</div>pooling wage <b>£650</b> for everyone</div>
+  </div>
+  <div class="card com" style="margin-top:18px"><div class="qa">What will firms do if they can tell the two types apart?</div>
+    <div data-s="1" style="margin-top:4px">Pay each type its <b>own productivity</b>: £1,000 to high types, £500 to low types.</div></div>
+</section>
+
+<!-- 14 GRAPH (c) -->
+<section class="slide" id="s-g3">
+  <h1>PS8 Q1(c): firms can tell workers apart</h1>
+  <div class="gwrap">
+    <svg id="g3" viewBox="0 0 1000 760"></svg>
+    <div class="side">
+      <div class="readout">Each worker is paid their own productivity.<br><br>
+        <b style="color:var(--seller)">Low type:</b> £650 → £500 <span style="white-space:nowrap">(−£150)</span><br>
+        <b style="color:var(--result)">High type:</b> £650 → £1,000 <span style="white-space:nowrap">(+£350)</span><br><br>
+        <span style="color:var(--muted)">Who would want to reveal their type?</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 PS8 (d)(e) QUESTION -->
+<section class="slide" id="s-ps8de">
+  <h1>PS8 Q1(d) and (e): courses as a signal</h1>
+  <div class="qtext">
+    <div><b>(d)</b> Suppose now the workers may take courses. The courses do not improve their productivity. However, a high quality worker only needs to pay £100 per course, while the lower quality workers (who need to pay for a course done at a slower pace and hence requiring more teaching hours) need to pay £200 per course. If the high quality workers agree to all take <span class="m">e<sub>H</sub></span> courses in order to signal their abilities over the low quality workers, what are the possible values of <span class="m">e<sub>H</sub></span> that would obtain this goal?</div>
+    <div class="part"><b>(e)</b> In this case, how many courses <span class="m">e<sub>L</sub></span> would the low productivity workers take? How much would the firm pay someone who had taken <span class="m">e<sub>H</sub></span> courses, and how much would they pay someone who had taken <span class="m">e<sub>L</sub></span> courses?</div></div>
+  <div class="grid3" style="margin-top:18px">
+    <div class="card hi given"><div class="who res">High type</div>produces <b>£1,000</b><br>course cost <b>£100</b> each</div>
+    <div class="card sel given"><div class="who sel">Low type</div>produces <b>£500</b><br>course cost <b>£200</b> each</div>
+    <div class="card com given"><div class="who com">Courses</div>do <b>not</b> raise productivity: they only signal</div>
+  </div>
+</section>
+
+<!-- 16b PS8 (d): the two goals -->
+<section class="slide" id="s-goals">
+  <h1>PS8 Q1(d): what must the courses achieve?</h1>
+  <h2>The firm wants to pay £1,000 to high types and £500 to low types, so it pays £1,000 only to workers with <span class="m">e<sub>H</sub></span> courses.</h2>
+  <div class="grid2">
+    <div class="card sel"><div class="who sel">Goal 1: low types must not pretend to be high</div>
+      <div class="qa">When does a low type prefer to take <b>no</b> courses?</div>
+      <div data-s="1" style="margin-top:6px">Without courses: £500. With courses: £1,000 − 200<span class="m">e<sub>H</sub></span>.<br>
+        £500 &gt; £1,000 − 200<span class="m">e<sub>H</sub></span> ⇒ <b><span class="m">e<sub>H</sub></span> &gt; 2.5</b></div></div>
+    <div class="card hi"><div class="who res">Goal 2: high types must not pretend to be low</div>
+      <div class="qa">When does a high type prefer to <b>take</b> the courses?</div>
+      <div data-s="1" style="margin-top:6px">With courses: £1,000 − 100<span class="m">e<sub>H</sub></span>. Without courses: £500.<br>
+        £1,000 − 100<span class="m">e<sub>H</sub></span> &gt; £500 ⇒ <b><span class="m">e<sub>H</sub></span> &lt; 5</b></div></div>
+  </div>
+  <div class="card com" style="margin-top:18px"><div class="who com">Discuss</div>Discuss for 1 minute: when is each goal met? Then we write the conditions on the whiteboard.</div>
+</section>
+
+<!-- 16 GRAPH (d) -->
+<section class="slide" id="s-g4">
+  <h1>PS8 Q1(d): which numbers of courses separate the types?</h1>
+  <div class="gwrap">
+    <svg id="g4" viewBox="0 0 1000 760"></svg>
+    <div class="side">
+      <div class="hint" style="font-size:19px;color:var(--ink)"><b>Find where both goals are met:</b> move the dot until each type makes the choice the firm wants. (e* is the required number of courses, e<sub>H</sub>.)</div>
+      <div class="readout" id="g4r"></div>
+      <div id="g4b" class="col" style="gap:8px"></div>
+      <div class="btnrow"><button class="btn" data-play="g4">▶ Play</button><button class="btn" data-reset="g4">Reset</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 GRAPH (e) -->
+<section class="slide" id="s-g5">
+  <h1>PS8 Q1(e): what does each type do?</h1>
+  <div class="gwrap">
+    <svg id="g5" viewBox="0 0 1000 760"></svg>
+    <div class="side">
+      <div class="readout" id="g5r"></div>
+      <div id="g5b" class="col" style="gap:8px"></div>
+      <div class="btnrow"><button class="btn" data-play="g5">▶ Play</button><button class="btn" data-reset="g5">Reset</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 PS8 (f) QUESTION -->
+<section class="slide" id="s-ps8f">
+  <h1>PS8 Q1(f): a different cost of courses</h1>
+  <div class="qtext"><b>(f)</b> Suppose instead that the cost of taking <span class="m">e</span> courses is £100 · √<span class="m">e</span> for a high quality worker, and £200 · √<span class="m">e</span> for a low quality worker. How does this change things?</div>
+  <div class="grid3" style="margin-top:18px">
+    <div class="card hi given"><div class="who res">High type</div>produces <b>£1,000</b><br>cost of <span class="m">e</span> courses <b>£100√<span class="m">e</span></b></div>
+    <div class="card sel given"><div class="who sel">Low type</div>produces <b>£500</b><br>cost of <span class="m">e</span> courses <b>£200√<span class="m">e</span></b></div>
+    <div class="card com given"><div class="who com">Courses</div>still do <b>not</b> raise productivity</div>
+  </div>
+</section>
+
+<!-- 19 GRAPH (f) -->
+<section class="slide" id="s-g6">
+  <h1>PS8 Q1(f): costs rise with √<span class="m">e</span></h1>
+  <div class="gwrap">
+    <svg id="g6" viewBox="0 0 1000 760"></svg>
+    <div class="side">
+      <div class="readout" id="g6r"></div>
+      <div id="g6b" class="col" style="gap:8px"></div>
+      <div class="btnrow"><button class="btn" data-play="g6">▶ Play</button><button class="btn" data-reset="g6">Reset</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- 20 EXIT -->
+<section class="slide" id="s-exit">
+  <h1>Before you go</h1>
+  <h2>Answer aloud, in one sentence each.</h2>
+  <div class="card com" style="font-size:32px;margin-top:10px">1. Why can hidden quality shut a market down?</div>
+  <div class="card com" style="font-size:32px;margin-top:22px">2. Why might someone take a course that does not make them more productive?</div>
+</section>
+
+</div></div></div>
+
+<div id="progress"></div>
+<div id="ui"><div id="counter"></div>
+  <div>Speed <button data-speed="0.5">0.5×</button><button data-speed="1" class="on">1×</button><button data-speed="1.5">1.5×</button><button data-speed="2">2×</button>
+  <button id="fs" title="Fullscreen (F)">⛶</button><button id="pv" title="Page view (P)">Page view</button><button id="pdf" title="Save as PDF">Save as PDF</button></div></div>
+
+<script>
+(function(){
+"use strict";
+const stage=document.getElementById('stage');
+let SCALE=1;
+function fit(){
+  const wrap=document.getElementById('pagewrap');
+  if(document.body.classList.contains('pages')){
+    SCALE=Math.min(1,(innerWidth-40)/1600);
+    stage.style.transform='scale('+SCALE+')';
+    stage.style.marginLeft=Math.max(0,(innerWidth-1600*SCALE)/2)+'px';
+    wrap.style.height=(stage.scrollHeight*SCALE+48)+'px';
+  }else{
+    SCALE=Math.min(innerWidth/1600,innerHeight/900);
+    stage.style.transform='scale('+SCALE+')';stage.style.marginLeft='';wrap.style.height='';
+  }}
+addEventListener('resize',fit);fit();
+
+/* speed */
+let SPEED=1;
+const BASE={fade:0,play:18000,morph:800,loop:44000};
+const dur=k=>BASE[k]/SPEED;
+function setSpeed(s){SPEED=s;document.documentElement.style.setProperty('--fade',dur('fade')+'ms');
+  document.querySelectorAll('[data-speed]').forEach(b=>b.classList.toggle('on',+b.dataset.speed===s));}
+document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>setSpeed(+b.dataset.speed)));
+setSpeed(1);
+
+/* slides: only the clicker / keyboard moves on */
+const slides=[...document.querySelectorAll('.slide')];
+let cur=0,step=0;const hooks={};
+const maxStep=sl=>{let m=0;sl.querySelectorAll('[data-s]').forEach(e=>m=Math.max(m,+e.dataset.s));sl.querySelectorAll('[data-until]').forEach(e=>m=Math.max(m,+e.dataset.until));return m;};
+function apply(dir){
+  const sl=slides[cur];
+  sl.querySelectorAll('[data-s]').forEach(e=>e.classList.toggle('hid',step<+e.dataset.s));
+  sl.querySelectorAll('[data-until]').forEach(e=>e.classList.toggle('hid',step>=+e.dataset.until));
+  if(hooks[sl.id])hooks[sl.id](step,dir);
+  document.getElementById('counter').textContent=(cur+1)+' / '+slides.length+'  ·  step '+step+' / '+maxStep(sl);
+  document.getElementById('progress').style.width=((cur+1)/slides.length*100)+'%';
+}
+function show(i,atEnd){
+  stopAll();
+  slides[cur].classList.remove('active');cur=Math.max(0,Math.min(slides.length-1,i));
+  const sl=slides[cur];sl.classList.add('active');step=atEnd?maxStep(sl):0;
+  sl.querySelectorAll('[data-s]').forEach(e=>e.style.transition='none');
+  apply(0);sl.getBoundingClientRect();
+  sl.querySelectorAll('[data-s]').forEach(e=>e.style.transition='');
+  try{history.replaceState(null,'','#'+(cur+1));}catch(e){}
+}
+function next(){const m=maxStep(slides[cur]);if(step<m){step++;apply(1);}else if(cur<slides.length-1)show(cur+1,false);}
+function prev(){if(step>0){step--;apply(-1);}else if(cur>0)show(cur-1,true);}
+function togglePages(){
+  const on=!document.body.classList.contains('pages');
+  document.body.classList.toggle('pages',on);document.documentElement.classList.toggle('pages',on);
+  stopAll();
+  document.querySelectorAll('.kw').forEach(k=>k.classList.toggle('lit',on||k.classList.contains('lit')));
+  document.getElementById('pv').textContent=on?'Slide view':'Page view';
+  fit();
+  if(on){const r=slides[cur].getBoundingClientRect();scrollTo(0,r.top+scrollY-20);}
+  else{scrollTo(0,0);show(cur,false);}
+}
+document.getElementById('pv').addEventListener('click',togglePages);
+document.getElementById('pdf').addEventListener('click',()=>{stopAll();window.print();});
+addEventListener('keydown',e=>{const k=e.key;
+  if(document.body.classList.contains('pages')){if(k==='Escape'||k==='p'||k==='P')togglePages();return;}
+  if(k==='p'||k==='P'){togglePages();return;}
+  if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(k)){e.preventDefault();next();}
+  else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(k)){e.preventDefault();prev();}
+  else if(k==='Home')show(0,false);else if(k==='End')show(slides.length-1,true);
+  else if(k==='f'||k==='F')toggleFS();});
+function toggleFS(){if(!document.fullscreenElement)document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();else document.exitFullscreen();}
+document.getElementById('fs').addEventListener('click',toggleFS);
+// buttons must not keep focus, so the clicker's Space/Enter keeps moving the slides
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(b)b.blur();});
+
+/* SVG helpers */
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const n=document.createElementNS(NS,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n;}
+function Plot(svg,o){
+  const W=1000,H=760,m={l:110,r:40,t:46,b:86};
+  const sx=x=>m.l+(x-o.x0)/(o.x1-o.x0)*(W-m.l-m.r), sy=y=>H-m.b-(y-o.y0)/(o.y1-o.y0)*(H-m.t-m.b);
+  const ix=px=>o.x0+(px-m.l)/(W-m.l-m.r)*(o.x1-o.x0);
+  const g=el('g',{},svg), ya=o.xaxisAt!==undefined?o.xaxisAt:o.y0;
+  el('line',{x1:sx(o.x0),y1:sy(ya),x2:sx(o.x1)+12,y2:sy(ya),stroke:'#1d2433','stroke-width':2},g);
+  el('line',{x1:sx(o.x0),y1:sy(o.y0),x2:sx(o.x0),y2:sy(o.y1)-12,stroke:'#1d2433','stroke-width':2},g);
+  (o.xt||[]).forEach(([v,l])=>{el('line',{x1:sx(v),y1:sy(ya),x2:sx(v),y2:sy(ya)+8,stroke:'#1d2433','stroke-width':2},g);
+    const t=el('text',{x:sx(v),y:sy(o.y0)+32,'text-anchor':'middle','font-size':21,fill:'#1d2433'},g);t.textContent=l;});
+  (o.yt||[]).forEach(([v,l])=>{el('line',{x1:sx(o.x0)-8,y1:sy(v),x2:sx(o.x0),y2:sy(v),stroke:'#1d2433','stroke-width':2},g);
+    const t=el('text',{x:sx(o.x0)-14,y:sy(v)+7,'text-anchor':'end','font-size':21,fill:'#1d2433'},g);t.textContent=l;});
+  if(o.xl){const t=el('text',{x:(sx(o.x0)+sx(o.x1))/2,y:H-18,'text-anchor':'middle','font-size':22,fill:'#5b6472'},g);t.textContent=o.xl;}
+  if(o.yl){const t=el('text',{x:sx(o.x0),y:sy(o.y1)-22,'text-anchor':'middle','font-size':22,fill:'#5b6472'},g);t.textContent=o.yl;}
+  return {sx,sy,ix,
+    layer(){return el('g',{},svg);},
+    fpath(f,a,b,parent,attrs,n){n=n||200;let d='';for(let i=0;i<=n;i++){const x=a+(b-a)*i/n;d+=(i?'L':'M')+sx(x).toFixed(1)+','+sy(f(x)).toFixed(1);}return el('path',Object.assign({d,fill:'none'},attrs),parent);},
+    line(x1,y1,x2,y2,parent,attrs){return el('line',Object.assign({x1:sx(x1),y1:sy(y1),x2:sx(x2),y2:sy(y2)},attrs),parent);},
+    text(x,y,s,parent,attrs){const t=el('text',Object.assign({x:sx(x),y:sy(y),'font-size':21},attrs),parent);t.textContent=s;return t;},
+    dot(x,y,r,parent,attrs){return el('circle',Object.assign({cx:sx(x),cy:sy(y),r},attrs),parent);}};
+}
+const gbp=v=>(v<0?'−£':'£')+Math.abs(Math.round(v)).toLocaleString('en-GB');
+function setL(n,x1,y1,x2,y2){n.setAttribute('x1',x1);n.setAttribute('y1',y1);n.setAttribute('x2',x2);n.setAttribute('y2',y2);}
+function draggable(h,svg,cb){h.classList.add('handle');
+  h.addEventListener('pointerdown',e=>{e.preventDefault();h.setPointerCapture(e.pointerId);stopAll();
+    const mv=ev=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const p=pt.matrixTransform(svg.getScreenCTM().inverse());cb(p.x,p.y);};
+    const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);};
+    h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);});}
+
+/* graphs: Play loops back and forth until pressed again */
+const graphs={};window.__graphs=graphs;
+function btnFor(id){return document.querySelector('[data-play="'+id+'"]');}
+function stopAll(){Object.keys(graphs).forEach(id=>{const G=graphs[id];if(G.raf){cancelAnimationFrame(G.raf);G.raf=null;}
+  const was=G.playing;G.playing=false;const b=btnFor(id);if(b)b.textContent='▶ Play';if(was&&G.set)G.set(G.val);});}
+function startLoop(id){const G=graphs[id];const {a,b}=G.range;
+  let ph=Math.acos(Math.max(-1,Math.min(1,1-2*(G.val-a)/(b-a))))/(2*Math.PI),last=performance.now();
+  G.playing=true;btnFor(id).textContent='❚❚ Pause';
+  const f=now=>{ph+=(now-last)/dur('loop');last=now;G.set(a+(b-a)*(0.5-0.5*Math.cos(2*Math.PI*ph)));G.raf=requestAnimationFrame(f);};
+  G.raf=requestAnimationFrame(f);}
+function tween(id,from,to,ms,done){const G=graphs[id];const t0=performance.now();
+  const f=now=>{if(!G.playing)return;const u=Math.min(1,(now-t0)/ms),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;G.set(from+(to-from)*e);
+    if(u<1)G.raf=requestAnimationFrame(f);else{G.raf=null;done&&done();}};
+  G.raf=requestAnimationFrame(f);}
+document.querySelectorAll('[data-play]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.play,G=graphs[id];
+  if(G.playing){stopAll();return;} stopAll(); if(G.once)G.once(); else startLoop(id);}));
+document.querySelectorAll('[data-reset]').forEach(b=>b.addEventListener('click',()=>{stopAll();graphs[b.dataset.reset].reset();}));
+
+/* ===== G1: PS7 Q2(b) ===== */
+(function(){
+  const svg=document.getElementById('g1');
+  const P=Plot(svg,{x0:0,x1:1.06,y0:800,y1:2200,xt:[[0,'0%'],[.25,'25%'],[.5,'50%'],[.75,'75%'],[1,'100%']],
+    yt:[[1000,'£1,000'],[1200,'£1,200'],[1500,'£1,500'],[2000,'£2,000']],xl:'share of cars repaired, q',yl:'£ per car'});
+  const EV=q=>1000+1000*q,AC=q=>1200+300*q,qs=2/7;
+  const L=P.layer();
+  const poly=(pts,fill)=>el('polygon',{points:pts.map(([x,y])=>P.sx(x)+','+P.sy(y)).join(' '),fill},L);
+  poly([[0,1000],[0,1200],[qs,AC(qs)]],'rgba(192,57,43,.15)');
+  poly([[qs,AC(qs)],[1,2000],[1,1500]],'rgba(46,125,79,.15)');
+  P.line(0,1000,1.06,1000,L,{stroke:'#999','stroke-width':3,'stroke-dasharray':'3 8','stroke-linecap':'round'});
+  P.line(0,2000,1.06,2000,L,{stroke:'#999','stroke-width':3,'stroke-dasharray':'3 8','stroke-linecap':'round'});
+  P.text(.6,1030,'lemon £1,000',L,{fill:'#888'});P.text(.02,2035,'peach £2,000',L,{fill:'#888'});
+  P.fpath(EV,0,1,L,{stroke:'#2a6fb0','stroke-width':4});P.fpath(AC,0,1,L,{stroke:'#c0392b','stroke-width':4});
+  P.line(.03,1880,.09,1880,L,{stroke:'#2a6fb0','stroke-width':5});P.text(.11,1880,'EV(q) = 1,000 + 1,000q',L,{fill:'#2a6fb0','font-weight':700,dy:7});
+  P.line(.03,1790,.09,1790,L,{stroke:'#c0392b','stroke-width':5});P.text(.11,1790,'AC(q) = 1,200 + 300q',L,{fill:'#c0392b','font-weight':700,dy:7});
+  P.line(qs,800,qs,AC(qs),L,{stroke:'#555','stroke-width':2,'stroke-dasharray':'8 6'});
+  P.dot(qs,AC(qs),7,L,{fill:'#1d2433'});
+  P.text(qs-.03,AC(qs)+70,'q* = 2/7 ≈ 28.6%',L,{'text-anchor':'end','font-weight':700});
+  P.text(qs-.02,880,'no trade',L,{'text-anchor':'end',fill:'#c0392b','font-weight':700});
+  P.text(qs+.02,880,'trade',L,{fill:'#2e7d4f','font-weight':700});
+  const D=P.layer();
+  const gap=el('line',{stroke:'#e67e22','stroke-width':7},D);
+  const hE=el('circle',{r:13,fill:'#2a6fb0',stroke:'#fff','stroke-width':3},D),hA=el('circle',{r:13,fill:'#c0392b',stroke:'#fff','stroke-width':3},D);
+  const ro=document.getElementById('g1r');
+  const G=graphs.g1={range:{a:0,b:1},val:0,playing:false};
+  G.set=v=>{const q=Math.max(0,Math.min(1,v));G.val=q;const x=P.sx(q);
+    setL(gap,x,P.sy(EV(q)),x,P.sy(AC(q)));
+    hE.setAttribute('cx',x);hE.setAttribute('cy',P.sy(EV(q)));hA.setAttribute('cx',x);hA.setAttribute('cy',P.sy(AC(q)));
+    const d=EV(q)-AC(q),eq=Math.abs(q-qs)<.0015,ok=d>0&&!eq;
+    const st=eq?['#b26a00','','BREAK-EVEN<br><span style="font-size:22px;font-weight:700">trade possible at zero surplus</span>']:(ok?['#2e7d4f','','TRADE ✓']:['#c0392b','','NO TRADE ✗']);
+    ro.innerHTML='<b>q = '+(q*100).toFixed(1)+'%</b> of cars repaired<br><span style="color:#2a6fb0">EV = '+gbp(EV(q))+'</span><br><span style="color:#c0392b">AC = '+gbp(AC(q))+'</span><br><b style="color:#e67e22">EV − AC = '+gbp(d)+'</b>';
+    const sb=document.getElementById('g1s');sb.style.borderColor=st[0];sb.style.color=st[0];sb.innerHTML=st[2];};
+  G.reset=()=>G.set(0);
+  draggable(hE,svg,px=>G.set(P.ix(px)));draggable(hA,svg,px=>G.set(P.ix(px)));
+  G.reset();
+})();
+
+/* ===== G2: PS8 (b) ===== */
+(function(){
+  const svg=document.getElementById('g2');
+  const P=Plot(svg,{x0:0,x1:1.06,y0:0,y1:1150,xt:[[0,'0'],[.2,'0.2'],[.4,'0.4'],[.6,'0.6'],[.8,'0.8'],[1,'1']],
+    yt:[[0,'£0'],[200,'£200'],[400,'£400'],[500,'£500'],[600,'£600'],[800,'£800'],[1000,'£1,000']],xl:'share of high-productivity workers, θ',yl:'£'});
+  const L=P.layer(),f=t=>500+500*t;
+  P.line(0,1000,1.06,1000,L,{stroke:'#2e7d4f','stroke-width':3,'stroke-dasharray':'10 7'});
+  P.line(0,500,1.06,500,L,{stroke:'#c0392b','stroke-width':3,'stroke-dasharray':'10 7'});
+  P.text(.03,1035,'high productivity £1,000',L,{fill:'#2e7d4f'});P.text(.6,430,'low productivity £500',L,{fill:'#c0392b'});
+  P.fpath(f,0,1,L,{stroke:'#2a6fb0','stroke-width':4});
+  P.line(.42,1105,.48,1105,L,{stroke:'#2a6fb0','stroke-width':5});P.text(.5,1105,'expected productivity = pooling wage',L,{fill:'#2a6fb0','font-weight':700,dy:7});
+  const D=P.layer();
+  const gx=el('line',{stroke:'#888','stroke-width':3,'stroke-dasharray':'2 7','stroke-linecap':'round'},D),gy=el('line',{stroke:'#888','stroke-width':3,'stroke-dasharray':'2 7','stroke-linecap':'round'},D);
+  const lab=el('text',{'font-size':23,'font-weight':700,fill:'#2a6fb0'},D);
+  const h=el('circle',{r:14,fill:'#2a6fb0',stroke:'#fff','stroke-width':3},D);
+  const ro=document.getElementById('g2r');
+  const G=graphs.g2={val:.3,playing:false};
+  G.set=v=>{const t=Math.max(0,Math.min(1,v)),y=f(t),x=P.sx(t);G.val=t;
+    setL(gx,P.sx(0),P.sy(y),x,P.sy(y));setL(gy,x,P.sy(y),x,P.sy(0));
+    h.setAttribute('cx',x);h.setAttribute('cy',P.sy(y));lab.setAttribute('x',x+18);lab.setAttribute('y',P.sy(y)+36);lab.textContent='w = '+gbp(y);
+    const atPS=!G.playing&&Math.abs(t-.3)<.005;
+    ro.innerHTML='Share of high types <b>θ = '+t.toFixed(2)+'</b><br>Pooling wage = θ × 1,000 + (1 − θ) × 500 = <b style="color:#2a6fb0">'+gbp(y)+'</b>'+
+      (atPS?'<br><br><b>In PS8:</b> 0.3 × 1,000 + 0.7 × 500 = <b>£650</b>':'');};
+  G.reset=()=>G.set(.3);
+  const done=()=>{G.playing=false;btnFor('g2').textContent='▶ Play';G.set(.3);};
+  G.once=()=>{G.playing=true;btnFor('g2').textContent='❚❚ Pause';
+    tween('g2',G.val,0,dur('play')/4,()=>tween('g2',0,1,dur('play'),()=>tween('g2',1,.3,dur('play')/2,done)));};
+  draggable(h,svg,px=>G.set(P.ix(px)));
+  G.reset();
+})();
+
+/* ===== G3: PS8 (c), static ===== */
+(function(){
+  const svg=document.getElementById('g3');
+  const P=Plot(svg,{x0:0,x1:4,y0:0,y1:1150,xt:[],yt:[[0,'£0'],[200,'£200'],[400,'£400'],[600,'£600'],[800,'£800'],[1000,'£1,000']],yl:'£'});
+  P.text(1.1,0,'Low type',svg,{'text-anchor':'middle',dy:34,'font-size':23});P.text(2.9,0,'High type',svg,{'text-anchor':'middle',dy:34,'font-size':23});
+  const L=P.layer();
+  [[1.1,500,'#c0392b','rgba(192,57,43,.22)'],[2.9,1000,'#2e7d4f','rgba(46,125,79,.28)']].forEach(([x,v,c,f])=>{
+    el('rect',{x:P.sx(x-.45),width:P.sx(x+.45)-P.sx(x-.45),y:P.sy(v),height:P.sy(0)-P.sy(v),fill:f,stroke:c,'stroke-width':3},L);
+    P.text(x,v,gbp(v),L,{'text-anchor':'middle',dy:-12,fill:c,'font-weight':700,'font-size':23});});
+  P.line(0,650,3.8,650,L,{stroke:'#2a6fb0','stroke-width':3,'stroke-dasharray':'12 8'});
+  P.text(.05,650,'pooling wage £650',L,{fill:'#2a6fb0','font-weight':700,dy:-12});
+  P.line(1.75,500,1.75,650,L,{stroke:'#c0392b','stroke-width':4});P.text(1.8,575,'−£150',L,{fill:'#c0392b','font-weight':700,dy:7});
+  P.line(3.55,650,3.55,1000,L,{stroke:'#2e7d4f','stroke-width':4});P.text(3.6,825,'+£350',L,{fill:'#2e7d4f','font-weight':700,dy:7});
+})();
+
+/* ===== the three ranges, shown beside (d), (e), (f) ===== */
+function rangeBoxes(cid,lo,hi,whole,short){
+  const c=document.getElementById(cid);
+  const defs=[
+    ['#c0392b','e* < '+lo,'Too few courses: the low type would take them too, so they do not separate the types.'],
+    ['#2e7d4f',lo+' < e* < '+hi,'Separates: the high type takes the courses, the low type takes none. Whole courses: '+whole+'.'],
+    ['#2a6fb0','e* > '+hi,'Too many courses: not worth it even for the high type, so nobody takes them.']];
+  if(short){defs[0][2]='the low type takes the courses too';defs[1][2]='separates: whole courses '+whole;defs[2][2]='nobody takes the courses';}
+  const nodes=defs.map(([col,lab,txt])=>{const d=document.createElement('div');d.className='rng';d.style.borderColor=col;
+    d.innerHTML='<b style="color:'+col+'">'+lab+'</b>'+(short?': ':'<br>')+txt;c.appendChild(d);return d;});
+  return e=>{const k=e<lo?0:(e>hi?2:1);nodes.forEach((n,i)=>n.classList.toggle('on',i===k));};
+}
+/* decision boxes: what each type gets with and without the courses */
+function decisions(e,nH,nL,fH,fL){
+  const row=(pick,txt)=>'<div class="r'+(pick?' pick':'')+'">'+(pick?'✓ ':'')+txt+'</div>';
+  const hW=nH>500+1e-9,hN=nH<500-1e-9,lW=nL>500+1e-9,lN=nL<500-1e-9;
+  const hTie=!hW&&!hN,lTie=!lW&&!lN;
+  return '<div class="dec" style="border-color:#2e7d4f"><div class="t" style="color:#2e7d4f">High type'+(hTie?' · indifferent':'')+'</div>'+
+    row(hW||hTie,'With courses, seen as high: £1,000 − '+fH+' = <b>'+gbp(nH)+'</b>')+
+    row(hN||hTie,'Without courses, seen as low: <b>£500</b>')+'</div>'+
+    '<div class="dec" style="border-color:#c0392b"><div class="t" style="color:#c0392b">Low type'+(lTie?' · indifferent':'')+'</div>'+
+    row(lN||lTie,'Without courses, seen as low: <b>£500</b>')+
+    row(lW||lTie,'With courses, pretending to be high: £1,000 − '+fL+' = <b>'+gbp(nL)+'</b>')+'</div>';
+}
+
+/* ===== G4 and G6: separating range ===== */
+function sepGraph(id,o){
+  const svg=document.getElementById(id);
+  const P=Plot(svg,{x0:0,x1:o.xmax,y0:0,y1:1150,xt:o.xt,yt:[[0,'£0'],[200,'£200'],[400,'£400'],[500,'£500'],[600,'£600'],[800,'£800'],[1000,'£1,000']],xl:'number of courses, e',yl:'£'});
+  const L=P.layer();
+  el('rect',{x:P.sx(o.lo),y:P.sy(1000),width:P.sx(o.hi)-P.sx(o.lo),height:P.sy(0)-P.sy(1000),fill:'rgba(46,125,79,.12)'},L);
+  P.fpath(e=>500+o.cL(e),0,o.endL,L,{stroke:'#c0392b','stroke-width':4});
+  P.fpath(e=>500+o.cH(e),0,o.endH,L,{stroke:'#2a6fb0','stroke-width':4});
+  P.text(o.labL[0],o.labL[1],o.labLt,L,{fill:'#c0392b','font-weight':700,'text-anchor':o.labL[2]});
+  P.text(o.labH[0],o.labH[1],o.labHt,L,{fill:'#2a6fb0','font-weight':700,'text-anchor':o.labH[2]});
+  P.dot(o.lo,1000,7,L,{fill:'#c0392b'});P.dot(o.hi,1000,7,L,{fill:'#2a6fb0'});
+  P.text(o.lo,1000,String(o.lo),L,{fill:'#c0392b','text-anchor':'end',dx:-12,dy:-12,'font-weight':700});
+  P.text(o.hi,1000,String(o.hi),L,{fill:'#2a6fb0','text-anchor':'start',dx:12,dy:30,'font-weight':700});
+  const D=P.layer();
+  const w1=el('line',{stroke:'#1d2433','stroke-width':5},D),w2=el('line',{stroke:'#1d2433','stroke-width':5},D);
+  const h=el('circle',{r:15,fill:'#1d2433',stroke:'#fff','stroke-width':3},D);
+  const ro=document.getElementById(id+'r'),box=rangeBoxes(id+'b',o.lo,o.hi,o.whole);
+  const G=graphs[id]={range:{a:0,b:o.xmax},val:o.def,playing:false};
+  G.set=v=>{const e=Math.max(0,Math.min(o.xmax,v));G.val=e;const x=P.sx(e);
+    setL(w1,P.sx(0),P.sy(500),x,P.sy(500));setL(w2,x,P.sy(1000),P.sx(o.xmax),P.sy(1000));
+    h.setAttribute('cx',x);h.setAttribute('cy',P.sy(1000));
+    ro.innerHTML='The firm pays <b>£1,000</b> to anyone with at least <b>e* = '+e.toFixed(2)+'</b> courses, and <b>£500</b> otherwise.'+
+      decisions(e,1000-o.cH(e),1000-o.cL(e),o.fmtH(e),o.fmtL(e));
+    box(e);};
+  G.reset=()=>G.set(o.def);
+  draggable(h,svg,px=>G.set(P.ix(px)));
+  G.reset();
+}
+sepGraph('g4',{xmax:10,xt:[0,1,2,3,4,5,6,7,8,9,10].map(v=>[v,String(v)]),lo:2.5,hi:5,def:4,whole:'3 or 4',
+  cL:e=>200*e,cH:e=>100*e,endL:3.1,endH:6.2,labL:[2.55,1100,'end'],labLt:'L: 500 + 200e',labH:[6.3,1080,'start'],labHt:'H: 500 + 100e',
+  fmtH:e=>'100 × '+e.toFixed(2),fmtL:e=>'200 × '+e.toFixed(2)});
+sepGraph('g6',{xmax:30,xt:[0,5,10,15,20,25,30].map(v=>[v,String(v)]),lo:6.25,hi:25,def:16,whole:'7 to 24',
+  cL:e=>200*Math.sqrt(e),cH:e=>100*Math.sqrt(e),endL:10.5,endH:30,labL:[11,1110,'start'],labLt:'L: 500 + 200√e',labH:[17,820,'start'],labHt:'H: 500 + 100√e',
+  fmtH:e=>'100 × √'+e.toFixed(2),fmtL:e=>'200 × √'+e.toFixed(2)});
+
+/* ===== G5: PS8 (e), pay left after the courses, for any e* ===== */
+(function(){
+  const id='g5',svg=document.getElementById(id),EMAX=8;
+  const P=Plot(svg,{x0:0,x1:8,y0:-1150,y1:1450,xaxisAt:0,xt:[0,1,2,3,4,5,6,7,8].map(v=>[v,String(v)]),
+    yt:[[-1000,'−£1,000'],[-500,'−£500'],[0,'£0'],[500,'£500'],[1000,'£1,000']],xl:'number of courses taken, e',yl:'£'});
+  const D=P.layer();
+  const ln=(c,w,dash)=>el('line',Object.assign({stroke:c,'stroke-width':w},dash?{'stroke-dasharray':dash}:{}),D);
+  // wage offered (gross): black step
+  const w1=ln('#1d2433',5),w2=ln('#1d2433',5);
+  // pay left after the courses (net): two decreasing pieces per type, with the jump at e*
+  const h1=ln('#2e7d4f',4),h2=ln('#2e7d4f',4),l1=ln('#c0392b',4),l2=ln('#c0392b',4);
+  const jH=ln('#2e7d4f',2,'4 5'),jL=ln('#c0392b',2,'4 5');
+  const p0=el('circle',{r:9,fill:'#1d2433'},D);
+  const pH=el('circle',{r:9,fill:'#2e7d4f'},D),pL=el('circle',{r:9,fill:'#c0392b'},D);
+  const ring=c=>el('circle',{r:17,fill:'none',stroke:c,'stroke-width':4},D);
+  const rH=ring('#2e7d4f'),rL=ring('#c0392b');
+  const sum=el('text',{'font-size':20,'font-weight':700,'text-anchor':'end'},D);
+  const mk=c=>el('tspan',{fill:c},sum);
+  const s1=mk('#2e7d4f'),s2=mk('#c0392b'),s3=mk('#5b6472');
+  const h=el('circle',{r:15,fill:'#1d2433',stroke:'#fff','stroke-width':3},D);
+  const ro=document.getElementById(id+'r'),box=rangeBoxes(id+'b',2.5,5,'3 or 4',true);
+  const G=graphs[id]={range:{a:0,b:EMAX},val:4,playing:false};
+  const lx=P.sx(8)-6,y0=P.sy(1000);
+  [s1,s2,s3].forEach((t,k)=>{t.setAttribute('x',lx);t.setAttribute('y',y0-104+k*30);});
+  s3.textContent='coloured lines = pay left after paying for the courses';
+  const seg=(n,x1,y1,x2,y2)=>setL(n,P.sx(x1),P.sy(y1),P.sx(x2),P.sy(y2));
+  const pt=(n,x,y)=>{n.setAttribute('cx',P.sx(x));n.setAttribute('cy',P.sy(y));};
+  G.set=v=>{const e=Math.max(0,Math.min(EMAX,v));G.val=e;
+    seg(w1,0,500,e,500);seg(w2,e,1000,8,1000);
+    seg(h1,0,500,e,500-100*e);seg(h2,e,1000-100*e,8,1000-800);seg(jH,e,500-100*e,e,1000-100*e);
+    seg(l1,0,500,e,500-200*e);seg(l2,e,1000-200*e,8,1000-1600);seg(jL,e,500-200*e,e,1000-200*e);
+    const nH=1000-100*e,nL=1000-200*e;
+    pt(p0,0,500);pt(pH,e,nH);pt(pL,e,nL);
+    // ring the option each type chooses
+    if(nH>=500)pt(rH,e,nH);else pt(rH,0,500);
+    if(nL>500)pt(rL,e,nL);else pt(rL,0,500);
+    s1.textContent='High type: '+gbp(nH)+' with e* courses · £500 with none';
+    s2.textContent='Low type: '+gbp(nL)+' with e* courses · £500 with none';
+    h.setAttribute('cx',P.sx(e));h.setAttribute('cy',P.sy(1000));
+    const ok=nH>500&&nL<500;
+    ro.innerHTML='Courses required for £1,000: <b>e* = '+e.toFixed(2)+'</b>.<br><b>Black:</b> the wage. <b style="color:#2e7d4f">Green</b>/<b style="color:#c0392b">red</b>: what each type keeps after paying for the courses, so they fall as courses are added. Each type picks its highest point (circled): no courses, or exactly e*.'+
+      decisions(e,nH,nL,'100 × '+e.toFixed(2),'200 × '+e.toFixed(2))+
+      '<div style="margin-top:8px;height:56px">'+(ok?'So e<sub>L</sub> = 0. Wages: <b>£1,000</b> with e<sub>H</sub> courses, <b>£500</b> with none.':'')+'</div>';
+    box(e);};
+  G.reset=()=>G.set(4);
+  draggable(h,svg,px=>G.set(P.ix(px)));
+  G.reset();
+})();
+
+/* ===== diagram → exam answer ===== */
+hooks['s-morph']=(s,dir)=>{
+  const sl=document.getElementById('s-morph');
+  sl.querySelectorAll('.ans p').forEach(p=>{const n=+p.dataset.s;p.querySelectorAll('.kw').forEach(k=>{
+    if(s>=n&&!(dir>0&&n===s))k.classList.add('lit');else if(s<n)k.classList.remove('lit');});});
+  if(dir<=0)return;
+  const p=sl.querySelector('.ans p[data-s="'+s+'"]');if(!p)return;
+  const sr=stage.getBoundingClientRect(),toS=r=>({x:(r.left-sr.left)/SCALE,y:(r.top-sr.top)/SCALE});
+  const col={info:'#455a7a',problem:'#b26a00',signal:'#0f8b8d',screen:'#7b4bb7',eff:'#b23a6b'};
+  [...p.querySelectorAll('.kw')].forEach((k,i)=>{
+    const src=toS(document.getElementById(k.dataset.from).getBoundingClientRect()),dst=toS(k.getBoundingClientRect());
+    const c=document.createElement('div');c.className='chip';c.textContent=k.textContent;c.style.background=col[k.dataset.c];
+    c.style.left=(src.x+14)+'px';c.style.top=(src.y+10)+'px';c.style.opacity='0';stage.appendChild(c);
+    const delay=i*dur('morph')*0.16;
+    setTimeout(()=>{c.style.transition='transform '+dur('morph')+'ms cubic-bezier(.45,.05,.3,1), opacity '+(dur('morph')*.3)+'ms';
+      c.style.opacity='1';c.style.transform='translate('+(dst.x-src.x-14)+'px,'+(dst.y-src.y-10)+'px)';},40+delay);
+    setTimeout(()=>{k.classList.add('lit');c.style.opacity='0';},40+delay+dur('morph'));
+    setTimeout(()=>c.remove(),40+delay+dur('morph')*1.4);});
+};
+
+const start=parseInt((location.hash||'').slice(1),10);
+show(isNaN(start)?0:start-1,false);
+})();
+</script>
+</body>
+</html>
